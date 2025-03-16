@@ -1,75 +1,129 @@
+import speech_recognition as sr
+import pyttsx3
+import pyautogui
 import os
 import time
-import json
-import subprocess
-import speech_recognition as sr
-from vosk import Model, KaldiRecognizer
-import pyttsx3
-import pvporcupine
-import pyaudio
+import webbrowser
+from pocketsphinx import LiveSpeech
 
-# Load Porcupine for Wake Word Detection
-WAKE_WORD = "jarvis"  # Customizable
-porcupine = pvporcupine.create(keywords=[WAKE_WORD])
-
-# Initialize TTS
 engine = pyttsx3.init()
+engine.setProperty('rate', 170)
 
 def speak(text):
     engine.say(text)
     engine.runAndWait()
 
-# Load Speech Recognition Model
-model = Model("vosk-model-small-en-us-0.15")
-recognizer = sr.Recognizer()
-mic = sr.Microphone()
-
-def listen_command():
-    with mic as source:
-        recognizer.adjust_for_ambient_noise(source)
+def listen():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=1)
         print("Listening...")
-        audio = recognizer.listen(source)
-    try:
-        command = recognizer.recognize_vosk(audio)
-        return json.loads(command).get("text", "")
-    except:
-        return ""
+        try:
+            audio = recognizer.listen(source, timeout=10, phrase_time_limit=5)
+            command = recognizer.recognize_google(audio).lower()
+            print("You said:", command)
+            return command if command.strip() else None
+        except (sr.UnknownValueError, sr.RequestError, sr.WaitTimeoutError):
+            return None
 
-def execute_command(command):
-    if "reminder" in command:
-        speak("What should I remind you about?")
-        reminder_text = listen_command()
-        speak(f"Reminder set for {reminder_text}")
-        with open("reminders.txt", "a") as file:
-            file.write(reminder_text + "\n")
-    elif "note" in command:
-        speak("What should I write down?")
-        note_text = listen_command()
-        with open("notes.txt", "a") as file:
-            file.write(note_text + "\n")
-        speak("Note saved.")
-    elif "play music" in command:
-        speak("Playing music")
-        os.system("start wmplayer")  # Windows Media Player
-    elif "send message" in command:
-        speak("To whom?")
-        contact = listen_command()
-        speak("What should I say?")
-        message = listen_command()
-        subprocess.run(["notepad", "message.txt"])  # Placeholder for actual messaging
-        speak(f"Message sent to {contact}.")
+def open_application(app_name):
+    if "notepad" in app_name:
+        os.system("notepad")
+    elif "chrome" in app_name:
+        os.system("start chrome")
+    elif "explorer" in app_name:
+        os.system("explorer")
+    elif "spotify" in app_name:
+        os.system("start spotify:")
     else:
-        speak("I didn't understand that.")
+        speak("Application not recognized.")
 
-# Main Loop for Wake Word Detection
-pa = pyaudio.PyAudio()
-stream = pa.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=512)
-print("Listening for wake word...")
+def open_youtube_in_brave():
+    brave_path = "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
+    url = "https://www.youtube.com"
+    if os.path.exists(brave_path):
+        webbrowser.register("brave", None, webbrowser.BackgroundBrowser(brave_path))
+        webbrowser.get("brave").open(url)
+    else:
+        print("Brave browser not found. Please check the installation path.")
 
-while True:
-    pcm = stream.read(512, exception_on_overflow=False)
-    if porcupine.process(pcm) >= 0:
-        speak("Yes?")
-        command = listen_command()
-        execute_command(command)
-    time.sleep(0.1)
+def control_pc(command):
+    if "shutdown" in command:
+        speak("Shutting down...")
+        os.system("shutdown /s /t 1")
+    elif "restart" in command:
+        speak("Restarting...")
+        os.system("shutdown /r /t 1")
+    elif "sleep" in command:
+        speak("Putting PC to sleep...")
+        os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+
+def write_note():
+    speak("What should I write?")
+    note = listen()
+    if note:
+        with open("note.txt", "a") as f:
+            f.write(note + "\n")
+        speak("Note saved.")
+
+def online_search(query):
+    speak(f"Searching for {query} online.")
+    search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+    webbrowser.open(search_url)
+
+def play_song_in_spotify(song_name):
+    if not song_name:
+        speak("I didn't catch the song name. Try again.")
+        return
+    open_application("spotify")
+    time.sleep(8) 
+    pyautogui.hotkey('ctrl', 'l')  
+    time.sleep(2)
+    pyautogui.write(song_name)
+    time.sleep(2)
+    pyautogui.press('enter')
+    time.sleep(3)
+    pyautogui.press('tab', presses=3, interval=1)  
+    time.sleep(1)
+    pyautogui.press('enter')
+    speak(f"Playing {song_name} on Spotify.")
+
+def wake_word_detection():
+    speak("Listening for wake word...")
+    speech = LiveSpeech(lm=False, keyphrase='arise', kws_threshold=1e-20)
+    for phrase in speech:
+        print("Wake word detected!")
+        speak("Assistant Activated.")
+        assistant()
+        break
+
+def assistant():
+    speak("Assistant ready. Say your command.")
+    while True:
+        command = listen()
+        if command is None:
+            continue  
+
+        command = command.strip()
+
+        if "open" in command:
+            app = command.replace("open", "").strip()
+            open_application(app)
+        elif "play" in command:
+            song = command.replace("play", "").strip()
+            play_song_in_spotify(song)
+        elif "shutdown" in command or "restart" in command or "sleep" in command:
+            control_pc(command)
+        elif "write a note" in command:
+            write_note()
+        elif "search for" in command:
+            query = command.replace("search for", "").strip()
+            online_search(query)
+        elif "exit" in command:
+            speak("Goodbye!")
+            break
+        else:
+            speak("I did not understand. Try again.")
+
+if __name__ == "__main__":
+    wake_word_detection()
