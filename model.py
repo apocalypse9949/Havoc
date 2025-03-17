@@ -14,8 +14,8 @@ import pvporcupine
 import socket
 from datetime import datetime
 
-# === Custom Assistant Name ===
-ASSISTANT_NAME = "Neo"  # Change to any name you prefer
+
+ASSISTANT_NAME = "Neo"  
 
 def speak(text):
     engine = pyttsx3.init()
@@ -38,8 +38,8 @@ def authenticate_user():
     speak("Scanning face to unlock assistant")
     video_capture = cv2.VideoCapture(0)
     known_face_encodings = []
-    known_face_names = ["User"]  # Add your name here
-    user_image = face_recognition.load_image_file("user_face.jpg")  # Pre-saved face image
+    known_face_names = ["User"]  
+    user_image = face_recognition.load_image_file("user_face.jpg")  
     known_face_encodings.append(face_recognition.face_encodings(user_image)[0])
     
     while True:
